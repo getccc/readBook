@@ -1,0 +1,11 @@
+# 屏蔽环境变量文件
+.env
+*.env
+
+# 屏蔽依赖文件夹
+node_modules/
+
+
+# 屏蔽编译输出
+data/
+novel/

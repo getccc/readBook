@@ -7,8 +7,14 @@ require('dotenv').config();
 const name = '盾击';
 
 function main() {
-  chapters.splitChapters(name);
-  read.readBook(name, 10, 30);
+  // 初始化
+  // chapters.splitChapters(name);
+  // read.readBook(name, 6, 30);
+
+  // 重试
+  // read.retryFailedChapters(name);
+  
+  // 大纲
   outline.readDeail(name);
 }
 

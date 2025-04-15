@@ -116,7 +116,7 @@ function writeResultsToTxt(results, txtPath) {
 }
 
 // 主函数
-async function readBook(name, batchSize = 2, mergeSize = 4) {
+async function readBook(name, batchSize = 5, mergeSize = 30) {
   // 要处理的文件路径
   const inputDir = path.join(rootDir, `data/${name}/chapters`);
   const outputDir = path.join(rootDir, `data/${name}/detail`);
@@ -136,7 +136,7 @@ async function readBook(name, batchSize = 2, mergeSize = 4) {
 
   const results = [];
   let processedCount = 0;
-  let count = 0;
+  let count = 9;
   
   // 分批处理，控制并发请求数量
   for (let i = 0; i < chapters.length; i += batchSize) {
@@ -158,11 +158,14 @@ async function readBook(name, batchSize = 2, mergeSize = 4) {
         const saveEnd = results.length;
         const resultsToSave = results.slice(saveStart, saveEnd);
         
-        console.log(`正在保存第 ${saveStart + 1} 到 ${saveEnd} 章的分析结果...`);
-        const mergeName = `${saveStart + 1}-${saveEnd}章`;
+        // 获取实际的章节号范围
+        const startChapter = resultsToSave[0].chapterNumber;
+        const endChapter = resultsToSave[resultsToSave.length - 1].chapterNumber;
+        
+        console.log(`正在保存第 ${startChapter} 到 ${endChapter} 章的分析结果...`);
         
         // 保存 JSON 格式
-        const jsonPath = path.join(outputDir, `${mergeName}.json`);
+        const jsonPath = path.join(outputDir, `${startChapter}-${endChapter}章.json`);
         fs.writeFileSync(jsonPath, JSON.stringify(resultsToSave, null, 2));
         
         // 保存 TXT 格式
@@ -182,10 +185,12 @@ async function readBook(name, batchSize = 2, mergeSize = 4) {
       console.error(`处理批次 ${i + 1} 到 ${Math.min(i + batchSize, chapters.length)} 时出错:`, error);
       // 保存已处理的结果
       if (results.length > 0) {
-        const mergeName = `error_save_${i}`;
+        const startChapter = results[0].chapterNumber;
+        const endChapter = results[results.length - 1].chapterNumber;
+        const mergeName = `error_save_${startChapter}-${endChapter}章`;
         const jsonPath = path.join(outputDir, `${mergeName}.json`);
         fs.writeFileSync(jsonPath, JSON.stringify(results, null, 2));
-        writeResultsToTxt(results, outputDir, `${mergeName}.txt`);
+        writeResultsToTxt(results, path.join(outputDir, `${mergeName}.txt`));
       }
       throw error; // 重新抛出错误，让调用者知道发生了错误
     }
@@ -194,4 +199,131 @@ async function readBook(name, batchSize = 2, mergeSize = 4) {
   console.log('所有章节分析完成！');
 }
 
-module.exports = { readBook };
+// 从 JSON 文件中加载章节数据,找到分析失败的章节
+function loadJson(outputDir) {
+  const allResults = [];
+  const files = fs.readdirSync(outputDir).filter(file => file.endsWith('.json'));
+  
+  files.forEach(file => {
+    const filePath = path.join(outputDir, file);
+    const content = fs.readFileSync(filePath, 'utf-8');
+    const results = JSON.parse(content);
+    allResults.push(...results);
+  });
+
+  // 按章节号排序
+  return allResults.sort((a, b) => a.chapterNumber - b.chapterNumber);
+}
+
+// 找到对应的txt章节文件
+function loadTxt(chapterDir, chapterNumber) {
+  const files = fs.readdirSync(chapterDir).filter(file => file.endsWith('.txt'));
+  const targetFile = files.find(file => {
+    const match = file.match(/第(\d+)章/);
+    return match && parseInt(match[1]) === chapterNumber;
+  });
+
+  if (!targetFile) {
+    throw new Error(`未找到第 ${chapterNumber} 章的 TXT 文件`);
+  }
+
+  const content = fs.readFileSync(path.join(chapterDir, targetFile), 'utf-8');
+  let chapterName = '';
+  const titleMatch = content.match(/第\d+章\s*([^\n]+)/);
+  if (titleMatch && titleMatch[1]) {
+    chapterName = titleMatch[1].trim();
+  }
+
+  return {
+    chapterNumber,
+    chapterName,
+    content
+  };
+}
+
+// 根据JSON结果重新生成TXT文件
+function writeForJson(outputDir, results, mergeSize = 30) {
+  // 确保输出目录存在
+  if (!fs.existsSync(outputDir)) {
+    fs.mkdirSync(outputDir, { recursive: true });
+  }
+
+  // 按章节号排序
+  const sortedResults = results.sort((a, b) => a.chapterNumber - b.chapterNumber);
+  
+  // 更新所有JSON文件
+  const files = fs.readdirSync(outputDir).filter(file => file.endsWith('.json'));
+  files.forEach(file => {
+    const filePath = path.join(outputDir, file);
+    fs.unlinkSync(filePath);
+  });
+
+  let count = 0;
+  console.log('开始重新生成结果文件...');
+
+  // 重新生成JSON文件
+  for (let i = 0; i < sortedResults.length; i += mergeSize) {
+    count++;
+    const batch = sortedResults.slice(i, i + mergeSize);
+    const startChapter = batch[0].chapterNumber;
+    const endChapter = batch[batch.length - 1].chapterNumber;
+    
+    // 保存 JSON 格式
+    const jsonPath = path.join(outputDir, `${startChapter}-${endChapter}章.json`);
+    fs.writeFileSync(jsonPath, JSON.stringify(batch, null, 2));
+    console.log(`已保存 JSON 文件: ${startChapter}-${endChapter}章.json`);
+    
+    // 保存 TXT 格式
+    const txtPath = path.join(outputDir, `${count}.txt`);
+    writeResultsToTxt(batch, txtPath);
+    console.log(`已保存 TXT 文件: ${count}.txt`);
+  }
+
+  console.log('所有结果文件重新生成完成！');
+}
+
+async function retryFailedChapters(name) {
+  const chapterDir = path.join(rootDir, `data/${name}/chapters`);
+  const outputDir = path.join(rootDir, `data/${name}/detail`);
+
+  console.log('开始重试失败的章节...');
+  
+  // 加载所有JSON文件并找出失败的章节
+  const allResults = loadJson(outputDir);
+  const failedChapters = allResults.filter(res => res.status === 'failed');
+  
+  if (failedChapters.length === 0) {
+    console.log('没有发现失败的章节，无需重试。');
+    return;
+  }
+
+  console.log(`发现 ${failedChapters.length} 个失败的章节，开始重试...`);
+
+  // 重试失败的章节
+  for (const failedChapter of failedChapters) {
+    console.log(`正在重试第 ${failedChapter.chapterNumber} 章...`);
+    try {
+      const chapter = loadTxt(chapterDir, failedChapter.chapterNumber);
+      const result = await analyzeChapter(chapter);
+      
+      // 更新结果
+      const index = allResults.findIndex(r => r.chapterNumber === failedChapter.chapterNumber);
+      if (index !== -1) {
+        allResults[index] = result;
+      }
+      
+      // 添加延迟，防止 API 请求过快
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (error) {
+      console.error(`重试第 ${failedChapter.chapterNumber} 章失败:`, error.message);
+    }
+  }
+
+  // 重新生成所有文件
+  console.log('正在重新生成结果文件...');
+  writeForJson(outputDir, allResults);
+  
+  console.log('重试完成！');
+}
+
+module.exports = { readBook, retryFailedChapters };

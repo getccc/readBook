@@ -97,37 +97,49 @@ function splitChapters(name) {
     // 解码文件内容
     const content = iconv.decode(buffer, encoding);
 
-    // 使用更完善的正则表达式匹配章节
+    // 匹配卷和章节的正则表达式
+    const volumePattern = /^第[零一二三四五六七八九十百千万\d]+卷/m;
     const chapterPattern = /^第[零一二三四五六七八九十百千万\d]+[章节回]/m;
-    const chapters = content.split(new RegExp(`(?=${chapterPattern.source})`, 'm'));
+    
+    // 先按卷分割
+    const volumes = content.split(new RegExp(`(?=${volumePattern.source})`, 'm'));
+    
+    let totalChapters = 0;
+    let currentChapterNumber = 0;
 
-    let validChapters = 0;
-    chapters.forEach((chapter, index) => {
-      const match = chapter.match(chapterPattern);
-      if (match) {
-        const originalChapterName = match[0].replace(/\s/g, '');
-        // 转换章节名中的中文数字为阿拉伯数字
-        const chapterName = convertChineseNumber(originalChapterName);
-        const filename = `${chapterName}.txt`;
-        const filePath = path.join(outputDir, filename);
+    volumes.forEach((volume, volumeIndex) => {
+      const volumeMatch = volume.match(volumePattern);
+      if (volumeMatch) {
+        // 在卷内按章节分割
+        const chapters = volume.split(new RegExp(`(?=${chapterPattern.source})`, 'm'));
         
-        // 清理章节内容
-        const cleanContent = chapter.trim();
-        if (cleanContent.length > 0) {
-          // 使用 utf-8 编码保存文件
-          const chapterBuffer = iconv.encode(cleanContent, 'utf-8');
-          fs.writeFileSync(filePath, chapterBuffer);
-          console.log(`已保存: ${filename} (原章节名: ${originalChapterName})`);
-          validChapters++;
-        }
+        chapters.forEach((chapter, chapterIndex) => {
+          const chapterMatch = chapter.match(chapterPattern);
+          if (chapterMatch) {
+            currentChapterNumber++;
+            const originalChapterName = chapterMatch[0].replace(/\s/g, '');
+            // 使用新的编号格式：第XXX章
+            const newChapterName = `第${String(currentChapterNumber).padStart(3, '0')}章`;
+            const filename = `${newChapterName}.txt`;
+            const filePath = path.join(outputDir, filename);
+            
+            const cleanContent = chapter.trim();
+            if (cleanContent.length > 0) {
+              const chapterBuffer = iconv.encode(cleanContent, 'utf-8');
+              fs.writeFileSync(filePath, chapterBuffer);
+              console.log(`已保存: ${filename} (原章节名: ${originalChapterName})`);
+              totalChapters++;
+            }
+          }
+        });
       }
     });
 
-    if (validChapters === 0) {
+    if (totalChapters === 0) {
       throw new Error('未找到任何章节，请检查文件格式是否正确');
     }
 
-    console.log(`✅ 成功分割 ${validChapters} 个章节！`);
+    console.log(`✅ 成功分割 ${totalChapters} 个章节！`);
   } catch (error) {
     console.error('处理文件时出错:', error.message);
     throw error; // 重新抛出错误以便调用者处理

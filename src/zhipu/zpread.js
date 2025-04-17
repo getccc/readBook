@@ -1,15 +1,12 @@
 const fs = require('fs');
 const path = require('path');
-const OpenAI = require("openai");
+const zhipuAI = require('./zhipuAI');
 require('dotenv').config();
 
 // 获取项目根目录（src的上一级目录）
-const rootDir = path.resolve(__dirname, '..');
+const rootDir = path.resolve(__dirname, '../..');
 
-const client = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL,
-});
+const zhipu = new zhipuAI(process.env.ZHIPU_API_KEY);
 
 // 读取同级目录下的所有 TXT 文件作为章节
 function loadChaptersFromFiles(inputDir) {
@@ -66,13 +63,14 @@ ${chapter.content}
 请直接提供分析结果，不要复述要求或多余说明。
 `;
 
-    const completion = await client.chat.completions.create({
-        model: "moonshot-v1-auto",         
-        messages: [{ 
-            role: "system", content: "你是一名专业的小说分析师，擅长从读者视角拆解和分析小说内容。",
-            role: "user", content: prompt
-        }],
-        temperature: 0.1
+    const completion = await zhipu.chatCompletions({
+      // model: 'glm-4-plus',
+      model: 'glm-4-air',
+      messages: [
+          { role: 'system', content: '你是一名专业的小说分析师，擅长从读者视角拆解和分析小说内容。' },
+          { role: 'user', content: prompt }
+      ],
+      temperature: 0.05,
     });
 
     return {

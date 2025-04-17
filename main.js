@@ -1,21 +1,30 @@
 const chapters = require('./src/chapters');
+const rest = require('./src/rest');
 const read = require('./src/read');
 const outline = require('./src/outline');
+
+const zpread = require('./src/zhipu/zpread');
+const zpline = require('./src/zhipu/zpline');
 require('dotenv').config();
 
 
-const name = '盾击';
+const name = '我在幕后调教大佬';
 
 function main() {
-  // 初始化
-  // chapters.splitChapters(name);
-  // read.readBook(name, 6, 30);
 
-  // 重试
-  // read.retryFailedChapters(name);
-  
-  // 大纲
-  outline.readDeail(name);
+  // 分割章节
+  // rest.splitChapters(name);
+
+
+  // kimi
+  // read.readBook(name, 6, 30);
+  // read.retryFailedChapters(name); // 重试
+  // outline.readDeail(name);   // 大纲
+
+
+  // 智普AI
+  zpread.readBook(name);
+  // zpline.readDeail(name);
 }
 
 main();

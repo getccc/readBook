@@ -8,7 +8,7 @@ const zpline = require('./src/zhipu/zpline');
 require('dotenv').config();
 
 
-const name = '我在幕后调教大佬';
+const name = '盾击';
 
 function main() {
 

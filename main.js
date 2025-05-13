@@ -5,10 +5,12 @@ const outline = require('./src/outline');
 
 const zpread = require('./src/zhipu/zpread');
 const zpline = require('./src/zhipu/zpline');
+
+const dpread = require('./src/local/dpread');
 require('dotenv').config();
 
 
-const name = '盾击';
+const name = '测试';
 
 function main() {
 
@@ -23,8 +25,10 @@ function main() {
 
 
   // 智普AI
-  zpread.readBook(name);
+  // zpread.readBook(name);
   // zpline.readDeail(name);
+
+  dpread.readBook(name);
 }
 
 main();
